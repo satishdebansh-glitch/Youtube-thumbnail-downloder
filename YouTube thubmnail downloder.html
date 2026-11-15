@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ThumbSpark — YouTube Thumbnail Downloader</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+    .gradient-bg {
+      background: linear-gradient(135deg, #fff1f2 0%, #fef3c7 35%, #e0f2fe 70%, #f3e8ff 100%);
+    }
+    .dark-mode.gradient-bg {
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 45%, #31102f 100%);
+    }
+    .hero-gradient {
+      background: linear-gradient(120deg, #ff0055, #ff5e3a, #f59e0b, #8b5cf6, #06b6d4);
+      background-size: 200% 200%;
+      animation: gradientShift 10s ease infinite;
+    }
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    .dark-mode .glass-card {
+      background: rgba(15, 23, 42, 0.82);
+      border-color: rgba(148, 163, 184, 0.18);
+    }
+    .thumb-card {
+      transition: transform 0.22s ease, box-shadow 0.22s ease;
+    }
+    .thumb-card:hover {
+      transform: translateY(-4px);
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(16px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .toast-enter {
+      animation: toastIn 0.22s ease forwards;
+    }
+  </style>
+</head>
+<body class="gradient-bg min-h-screen text-slate-800 transition-colors duration-300 antialiased selection:bg-pink-500 selection:text-white">
+  <!-- Top Navigation -->
+  <header class="sticky top-0 z-30 glass-card border-b border-white/60 shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-10 h-10 rounded-xl hero-gradient flex items-center justify-center text-white shadow-md shrink-0">
+          <i data-lucide="image-down" class="w-5 h-5"></i>
+        </div>
+        <div class="truncate">
+          <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-rose-600 via-amber-500 to-violet-600 bg-clip-text text-transparent">ThumbSpark</span>
+          <span class="hidden sm:inline-block ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">HD &amp; 4K Ready</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="historyToggleBtn" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-white/80 hover:bg-white text-slate-700 border border-slate-200/80 shadow-sm transition cursor-pointer" title="Recent Videos">
+          <i data-lucide="history" class="w-4 h-4 text-violet-600"></i>
+          <span class="hidden sm:inline">History</span>
+          <span id="historyCountBadge" class="px-1.5 py-0.5 text-[11px] rounded-full bg-violet-100 text-violet-700 font-bold">0</span>
+        </button>
+        <button id="themeToggleBtn" type="button" class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-white/80 hover:bg-white text-slate-700 border border-slate-200/80 shadow-sm transition cursor-pointer" title="Toggle Dark Mode" aria-label="Toggle Dark Mode">
+          <i data-lucide="moon" class="w-4 h-4 text-amber-500"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8">
+    <!-- Hero Input Section -->
+    <section class="glass-card rounded-3xl p-5 sm:p-8 border border-white/70 shadow-xl relative overflow-hidden">
+      <div class="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-gradient-to-br from-rose-400/20 to-amber-300/20 blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-24 -left-24 w-64 h-64 rounded-full bg-gradient-to-tr from-cyan-400/20 to-violet-400/20 blur-3xl pointer-events-none"></div>
+
+      <div class="relative z-10 max-w-3xl mx-auto text-center space-y-4">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-violet-500/10 border border-rose-300/40 text-rose-600 text-xs font-bold uppercase tracking-wider">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+          Instant YouTube Thumbnail Extractor
+        </div>
+        <h1 class="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight">
+          Download Any YouTube Thumbnail in
+          <span class="bg-gradient-to-r from-rose-500 via-orange-500 to-violet-600 bg-clip-text text-transparent">Crisp Quality</span>
+        </h1>
+        <p class="text-sm sm:text-base text-slate-600 dark-subtext max-w-2xl mx-auto">
+          Paste any YouTube video, Shorts, Live, or Embed link to preview all resolutions, convert to PNG/WebP/JPG, copy direct URLs, or bundle everything into a ZIP.
+        </p>
+
+        <!-- Search / URL Form -->
+        <form id="urlForm" class="mt-5 flex flex-col sm:flex-row gap-3">
+          <div class="relative flex-1">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <i data-lucide="youtube" class="w-5 h-5 text-rose-500"></i>
+            </div>
+            <input
+              id="urlInput"
+              type="text"
+              placeholder="Paste YouTube URL or 11-char Video ID (e.g. https://youtu.be/...)"
+              class="w-full pl-11 pr-20 py-3.5 rounded-2xl border-2 border-slate-200 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/15 bg-white text-slate-800 placeholder-slate-400 text-sm sm:text-base font-medium outline-none transition shadow-sm"
+              autocomplete="off"
+            />
+            <div class="absolute inset-y-0 right-2 flex items-center gap-1">
+              <button id="pasteBtn" type="button" class="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer" title="Paste from clipboard">
+                Paste
+              </button>
+              <button id="clearBtn" type="button" class="p-1.5 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition cursor-pointer hidden" title="Clear input" aria-label="Clear input">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+          <button
+            id="extractBtn"
+            type="submit"
+            class="hero-gradient text-white font-bold px-6 py-3.5 rounded-2xl shadow-lg shadow-rose-500/25 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+          >
+            <i data-lucide="zap" class="w-4 h-4"></i>
+            <span>Get Thumbnails</span>
+          </button>
+        </form>
+
+        <!-- Quick Sample Chips -->
+        <div class="flex flex-wrap items-center justify-center gap-2 pt-1 text-xs">
+          <span class="text-slate-500 dark-subtext font-medium">Try sample:</span>
+          <button type="button" data-sample="aqz-KE-bpKQ" class="sample-btn px-3 py-1 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-700 font-semibold transition cursor-pointer">Big Buck Bunny 4K</button>
+          <button type="button" data-sample="LXb3EKWsInQ" class="sample-btn px-3 py-1 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold transition cursor-pointer">Costa Rica 4K</button>
+          <button type="button" data-sample="dQw4w9WgXcQ" class="sample-btn px-3 py-1 rounded-full bg-violet-100 hover:bg-violet-200 text-violet-700 font-semibold transition cursor-pointer">Classic Music Video</button>
+        </div>
+
+        <!-- Error Banner -->
+        <div id="errorBanner" class="hidden mt-3 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-medium flex items-center justify-center gap-2">
+          <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+          <span id="errorText">Invalid YouTube URL or Video ID.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Controls & Video Summary Bar -->
+    <section id="toolbarSection" class="glass-card rounded-2xl p-4 sm:p-5 border border-white/70 shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/90 text-slate-700 text-xs sm:text-sm font-semibold">
+          <i data-lucide="film" class="w-4 h-4 text-rose-500"></i>
+          <span>ID:</span>
+          <code id="activeVideoId" class="font-mono text-rose-600 font-bold">aqz-KE-bpKQ</code>
+          <button id="copyIdBtn" type="button" class="ml-1 text-slate-400 hover:text-slate-700 cursor-pointer" title="Copy Video ID">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
+        <a id="watchOnYtLink" href="https://www.youtube.com/watch?v=aqz-KE-bpKQ" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs sm:text-sm font-semibold transition">
+          <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+          <span>Watch Video</span>
+        </a>
+
+        <div id="availableCountPill" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs sm:text-sm font-semibold">
+          <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+          <span id="availableCountText">Checking resolutions...</span>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2.5">
+        <!-- Download Format Selector -->
+        <div class="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl">
+          <span class="text-xs font-semibold text-slate-500 pl-2">Format:</span>
+          <button type="button" data-format="image/jpeg" class="format-btn px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-rose-600 shadow-sm cursor-pointer transition">JPG</button>
+          <button type="button" data-format="image/png" class="format-btn px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer transition">PNG</button>
+          <button type="button" data-format="image/webp" class="format-btn px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer transition">WebP</button>
+        </div>
+
+        <!-- Filter Toggle -->
+        <button id="toggleFramesBtn" type="button" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-violet-100 hover:bg-violet-200 text-violet-700 transition cursor-pointer">
+          <i data-lucide="layers" class="w-4 h-4"></i>
+          <span id="toggleFramesLabel">Show Video Frames</span>
+        </button>
+
+        <!-- Download All ZIP -->
+        <button id="downloadZipBtn" type="button" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-md shadow-emerald-500/20 transition cursor-pointer">
+          <i data-lucide="folder-archive" class="w-4 h-4"></i>
+          <span>Download All ZIP</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Main Thumbnail Grid -->
+    <section aria-label="Available Thumbnails">
+      <div id="thumbnailGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+    </section>
+
+    <!-- Storyboard / Frame Previews Section -->
+    <section id="framesSection" class="hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg sm:text-xl font-bold flex items-center gap-2">
+          <span class="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white flex items-center justify-center">
+            <i data-lucide="clapperboard" class="w-4 h-4"></i>
+          </span>
+          <span>Auto-Generated Video Frames</span>
+        </h2>
+        <span class="text-xs font-medium text-slate-500 dark-subtext">Captured from video timeline</span>
+      </div>
+      <div id="framesGrid" class="grid grid-cols-1 sm:grid-cols-3 gap-5"></div>
+    </section>
+
+    <!-- Supported Formats Info -->
+    <section class="glass-card rounded-3xl p-5 sm:p-6 border border-white/70 shadow-sm">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center sm:text-left">
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+            <i data-lucide="link-2" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm">All YouTube Links</h3>
+            <p class="text-xs text-slate-500 dark-subtext mt-0.5">Supports Watch, Shorts, Live, Embed, Music, and youtu.be short links.</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+            <i data-lucide="wand-2" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm">Instant Format Convert</h3>
+            <p class="text-xs text-slate-500 dark-subtext mt-0.5">Export any thumbnail in JPG, lossless PNG, or lightweight WebP right in your browser.</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0">
+            <i data-lucide="package-check" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm">1-Click Batch ZIP</h3>
+            <p class="text-xs text-slate-500 dark-subtext mt-0.5">Bundle every available resolution into a single organized ZIP archive.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- History Drawer / Modal -->
+  <div id="historyModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div class="glass-card w-full max-w-lg rounded-3xl p-6 border border-white/60 shadow-2xl space-y-4 max-h-[80vh] flex flex-col">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-extrabold flex items-center gap-2">
+          <i data-lucide="history" class="w-5 h-5 text-violet-600"></i>
+          <span>Recent Videos</span>
+        </h3>
+        <div class="flex items-center gap-2">
+          <button id="clearHistoryBtn" type="button" class="text-xs font-semibold text-rose-600 hover:text-rose-700 px-2.5 py-1 rounded-lg hover:bg-rose-50 cursor-pointer transition">Clear All</button>
+          <button id="closeHistoryBtn" type="button" class="p-1.5 rounded-xl hover:bg-slate-200/70 text-slate-500 cursor-pointer transition" aria-label="Close History">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+      <div id="historyList" class="overflow-y-auto space-y-2.5 pr-1 flex-1"></div>
+    </div>
+  </div>
+
+  <!-- Fullscreen Preview Modal -->
+  <div id="previewModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="relative max-w-5xl w-full flex flex-col items-center gap-4">
+      <div class="w-full flex items-center justify-between text-white px-1">
+        <div>
+          <h3 id="previewTitle" class="font-bold text-base sm:text-lg">Thumbnail Preview</h3>
+          <p id="previewDims" class="text-xs text-slate-300"></p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="previewDownloadBtn" type="button" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs sm:text-sm font-bold transition cursor-pointer">
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span>Download</span>
+          </button>
+          <button id="closePreviewBtn" type="button" class="p-2 rounded-xl bg-white/15 hover:bg-white/25 text-white transition cursor-pointer" aria-label="Close Preview">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+      <img id="previewImg" src="" alt="Full thumbnail preview" class="max-h-[78vh] w-auto max-w-full rounded-2xl shadow-2xl border border-white/15 object-contain bg-slate-900" />
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-xs w-full pointer-events-none"></div>
+
+  <script>
+    (() => {
+      const THUMB_VARIANTS = [
+        {
+          key: 'maxresdefault',
+          label: 'Max Resolution (HD)',
+          badge: '1280 × 720',
+          aspect: '16:9',
+          accent: 'from-rose-500 to-pink-600',
+          badgeBg: 'bg-rose-100 text-rose-700',
+          desc: 'Best for posters, blogs & high-DPI displays',
+        },
+        {
+          key: 'sddefault',
+          label: 'Standard Definition (SD)',
+          badge: '640 × 480',
+          aspect: '4:3',
+          accent: 'from-amber-500 to-orange-500',
+          badgeBg: 'bg-amber-100 text-amber-800',
+          desc: 'Great for medium embeds & presentations',
+        },
+        {
+          key: 'hqdefault',
+          label: 'High Quality (HQ)',
+          badge: '480 × 360',
+          aspect: '4:3',
+          accent: 'from-violet-500 to-purple-600',
+          badgeBg: 'bg-violet-100 text-violet-700',
+          desc: 'Always available on every YouTube video',
+        },
+        {
+          key: 'mqdefault',
+          label: 'Medium Quality (MQ)',
+          badge: '320 × 180',
+          aspect: '16:9',
+          accent: 'from-cyan-500 to-blue-600',
+          badgeBg: 'bg-cyan-100 text-cyan-800',
+          desc: 'Clean widescreen card thumbnail',
+        },
+        {
+          key: 'default',
+          label: 'Default Thumbnail',
+          badge: '120 × 90',
+          aspect: '4:3',
+          accent: 'from-emerald-500 to-teal-600',
+          badgeBg: 'bg-emerald-100 text-emerald-700',
+          desc: 'Lightweight icon-sized preview',
+        },
+      ];
+
+      const FRAME_VARIANTS = [
+        { key: '1', label: 'Start Frame (#1)', badge: '120 × 90' },
+        { key: '2', label: 'Middle Frame (#2)', badge: '120 × 90' },
+        { key: '3', label: 'End Frame (#3)', badge: '120 × 90' },
+      ];
+
+      const state = {
+        videoId: 'aqz-KE-bpKQ',
+        format: 'image/jpeg',
+        showFrames: false,
+        darkMode: false,
+        availability: {},
+        history: [],
+        previewItem: null,
+      };
+
+      // DOM elements
+      const urlForm = document.getElementById('urlForm');
+      const urlInput = document.getElementById('urlInput');
+      const pasteBtn = document.getElementById('pasteBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const errorBanner = document.getElementById('errorBanner');
+      const errorText = document.getElementById('errorText');
+      const activeVideoIdEl = document.getElementById('activeVideoId');
+      const copyIdBtn = document.getElementById('copyIdBtn');
+      const watchOnYtLink = document.getElementById('watchOnYtLink');
+      const availableCountText = document.getElementById('availableCountText');
+      const thumbnailGrid = document.getElementById('thumbnailGrid');
+      const framesSection = document.getElementById('framesSection');
+      const framesGrid = document.getElementById('framesGrid');
+      const toggleFramesBtn = document.getElementById('toggleFramesBtn');
+      const toggleFramesLabel = document.getElementById('toggleFramesLabel');
+      const downloadZipBtn = document.getElementById('downloadZipBtn');
+      const themeToggleBtn = document.getElementById('themeToggleBtn');
+      const historyToggleBtn = document.getElementById('historyToggleBtn');
+      const historyCountBadge = document.getElementById('historyCountBadge');
+      const historyModal = document.getElementById('historyModal');
+      const historyList = document.getElementById('historyList');
+      const closeHistoryBtn = document.getElementById('closeHistoryBtn');
+      const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+      const previewModal = document.getElementById('previewModal');
+      const previewImg = document.getElementById('previewImg');
+      const previewTitle = document.getElementById('previewTitle');
+      const previewDims = document.getElementById('previewDims');
+      const previewDownloadBtn = document.getElementById('previewDownloadBtn');
+      const closePreviewBtn = document.getElementById('closePreviewBtn');
+      const toastContainer = document.getElementById('toastContainer');
+
+      // Storage helpers
+      function loadStorage() {
+        try {
+          const savedHistory = localStorage.getItem('thumbspark_history');
+          if (savedHistory) {
+            const parsed = JSON.parse(savedHistory);
+            if (Array.isArray(parsed)) state.history = parsed;
+          }
+          const savedTheme = localStorage.getItem('thumbspark_dark');
+          if (savedTheme === 'true') {
+            state.darkMode = true;
+            applyTheme();
+          }
+        } catch (e) {
+          // Ignore storage restrictions
+        }
+      }
+
+      function saveHistory() {
+        try {
+          localStorage.setItem('thumbspark_history', JSON.stringify(state.history));
+        } catch (e) {
+          // Ignore storage restrictions
+        }
+      }
+
+      function saveTheme() {
+        try {
+          localStorage.setItem('thumbspark_dark', String(state.darkMode));
+        } catch (e) {
+          // Ignore storage restrictions
+        }
+      }
+
+      // Toast notification
+      function showToast(message, type = 'success') {
+        const colors = {
+          success: 'bg-emerald-600 text-white',
+          info: 'bg-slate-800 text-white',
+          error: 'bg-rose-600 text-white',
+        };
+        const toast = document.createElement('div');
+        toast.className = `toast-enter pointer-events-auto px-4 py-3 rounded-2xl shadow-xl text-xs sm:text-sm font-semibold flex items-center gap-2 ${colors[type] || colors.info}`;
+        toast.textContent = message;
+        toastContainer.appendChild(toast);
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(8px)';
+          toast.style.transition = 'all 0.2s ease';
+          setTimeout(() => toast.remove(), 220);
+        }, 2600);
+      }
+
+      // Clipboard helper with fallback
+      async function copyText(text, successMsg) {
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+            showToast(successMsg, 'success');
+            return;
+          }
+        } catch (e) {
+          // Fall back below
+        }
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+          showToast(successMsg, 'success');
+        } catch (e) {
+          showToast('Could not copy to clipboard', 'error');
+        }
+      }
+
+      // Extract YouTube Video ID from any URL or raw ID
+      function extractVideoId(input) {
+        const trimmed = (input || '').trim();
+        if (!trimmed) return null;
+        if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+
+        const patterns = [
+          /(?:youtube\.com\/watch\?(?:.*&)?v=)([a-zA-Z0-9_-]{11})/,
+          /(?:youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+          /(?:youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+          /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+          /(?:youtube\.com\/live\/)([a-zA-Z0-9_-]{11})/,
+          /(?:youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
+        ];
+        for (const pattern of patterns) {
+          const match = trimmed.match(pattern);
+          if (match && match[1]) return match[1];
+        }
+        return null;
+      }
+
+      function getThumbUrl(videoId, key) {
+        return `https://i.ytimg.com/vi/${videoId}/${key}.jpg`;
+      }
+
+      function getFormatExt() {
+        if (state.format === 'image/png') return 'png';
+        if (state.format === 'image/webp') return 'webp';
+        return 'jpg';
+      }
+
+      // Download single image with format conversion via Canvas
+      async function downloadThumbnail(url, filenameBase) {
+        const ext = getFormatExt();
+        const filename = `${filenameBase}.${ext}`;
+
+        try {
+          // If JPG is selected, try direct fetch blob first for original file quality
+          if (state.format === 'image/jpeg') {
+            const resp = await fetch(url, { mode: 'cors' });
+            if (!resp.ok) throw new Error('Fetch failed');
+            const blob = await resp.blob();
+            triggerBlobDownload(blob, filename);
+            showToast(`Downloaded ${filename}`, 'success');
+            return;
+          }
+
+          // Convert to PNG or WebP using offscreen canvas
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+          });
+
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+
+          const blob = await new Promise((resolve) =>
+            canvas.toBlob(resolve, state.format, 0.95)
+          );
+          if (!blob) throw new Error('Conversion failed');
+          triggerBlobDownload(blob, filename);
+          showToast(`Converted & downloaded ${filename}`, 'success');
+        } catch (err) {
+          // Fallback: open in new tab if browser blocks cross-origin download
+          window.open(url, '_blank', 'noopener,noreferrer');
+          showToast('Opened image in new tab (right-click to save)', 'info');
+        }
+      }
+
+      function triggerBlobDownload(blob, filename) {
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+      }
+
+      // Batch ZIP download
+      async function downloadAllAsZip() {
+        if (typeof JSZip === 'undefined') {
+          showToast('ZIP library still loading, please try again', 'error');
+          return;
+        }
+        downloadZipBtn.disabled = true;
+        const originalHtml = downloadZipBtn.innerHTML;
+        downloadZipBtn.innerHTML = '<span>Packing ZIP...</span>';
+
+        try {
+          const zip = new JSZip();
+          const folder = zip.folder(`youtube-${state.videoId}-thumbnails`);
+          let added = 0;
+
+          const items = THUMB_VARIANTS.filter(
+            (v) => state.availability[v.key]?.available !== false
+          );
+
+          await Promise.all(
+            items.map(async (v) => {
+              const url = getThumbUrl(state.videoId, v.key);
+              try {
+                const resp = await fetch(url, { mode: 'cors' });
+                if (!resp.ok) return;
+                const blob = await resp.blob();
+                if (blob.size < 1500 && v.key === 'maxresdefault') return;
+                folder.file(`${state.videoId}_${v.key}.jpg`, blob);
+                added++;
+              } catch (e) {
+                // Skip unreachable variant
+              }
+            })
+          );
+
+          if (added === 0) {
+            showToast('Could not fetch images for ZIP (CORS blocked)', 'error');
+          } else {
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            triggerBlobDownload(zipBlob, `yt-thumbnails-${state.videoId}.zip`);
+            showToast(`Downloaded ${added} thumbnails in ZIP`, 'success');
+          }
+        } catch (err) {
+          showToast('Failed to create ZIP archive', 'error');
+        } finally {
+          downloadZipBtn.disabled = false;
+          downloadZipBtn.innerHTML = originalHtml;
+          if (window.lucide) lucide.createIcons();
+        }
+      }
+
+      // Add video to history
+      function pushHistory(videoId) {
+        state.history = [
+          { id: videoId, ts: Date.now() },
+          ...state.history.filter((item) => item.id !== videoId),
+        ].slice(0, 12);
+        saveHistory();
+        renderHistoryBadge();
+      }
+
+      function renderHistoryBadge() {
+        historyCountBadge.textContent = String(state.history.length);
+      }
+
+      function renderHistoryList() {
+        if (state.history.length === 0) {
+          historyList.innerHTML = `
+            <div class="text-center py-8 text-slate-400 text-sm">
+              No recent videos yet. Extract a thumbnail to save it here.
+            </div>
+          `;
+          return;
+        }
+        historyList.innerHTML = state.history
+          .map(
+            (item) => `
+            <div class="flex items-center justify-between gap-3 p-2.5 rounded-2xl bg-white/70 border border-slate-200/80 hover:border-violet-300 transition">
+              <button type="button" data-load-id="${item.id}" class="flex items-center gap-3 text-left flex-1 min-w-0 cursor-pointer">
+                <img src="${getThumbUrl(item.id, 'mqdefault')}" alt="${item.id}" class="w-20 h-12 object-cover rounded-xl shrink-0 bg-slate-200" />
+                <div class="min-w-0">
+                  <div class="font-mono font-bold text-sm text-slate-800 truncate">${item.id}</div>
+                  <div class="text-xs text-slate-500">${new Date(item.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+              </button>
+              <button type="button" data-remove-id="${item.id}" class="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition" title="Remove">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+          `
+          )
+          .join('');
+        if (window.lucide) lucide.createIcons();
+      }
+
+      // Update availability count pill
+      function updateAvailabilitySummary() {
+        const total = THUMB_VARIANTS.length;
+        const checked = Object.keys(state.availability).length;
+        const available = Object.values(state.availability).filter((x) => x.available).length;
+        if (checked < total) {
+          availableCountText.textContent = `Checking ${checked}/${total}...`;
+        } else {
+          availableCountText.textContent = `${available} of ${total} resolutions ready`;
+        }
+      }
+
+      // Render main thumbnail cards
+      function renderThumbnails() {
+        state.availability = {};
+        activeVideoIdEl.textContent = state.videoId;
+        watchOnYtLink.href = `https://www.youtube.com/watch?v=${state.videoId}`;
+        updateAvailabilitySummary();
+
+        thumbnailGrid.innerHTML = THUMB_VARIANTS.map((variant) => {
+          const url = getThumbUrl(state.videoId, variant.key);
+          return `
+            <article data-card-key="${variant.key}" class="thumb-card glass-card rounded-3xl overflow-hidden border border-white/80 shadow-lg flex flex-col">
+              <div class="h-1.5 w-full bg-gradient-to-r ${variant.accent}"></div>
+              <div class="relative bg-slate-900 aspect-video overflow-hidden group">
+                <img
+                  src="${url}"
+                  alt="${variant.label}"
+                  data-variant="${variant.key}"
+                  class="thumb-img w-full h-full object-contain transition duration-300 group-hover:scale-[1.03]"
+                />
+                <div class="absolute top-3 left-3 flex items-center gap-1.5">
+                  <span class="px-2.5 py-1 rounded-full text-[11px] font-bold shadow-sm ${variant.badgeBg}">${variant.badge}</span>
+                  <span class="px-2 py-1 rounded-full text-[11px] font-bold bg-slate-900/75 text-white backdrop-blur-sm">${variant.aspect}</span>
+                </div>
+                <button
+                  type="button"
+                  data-preview-key="${variant.key}"
+                  class="absolute bottom-3 right-3 p-2 rounded-xl bg-slate-900/75 hover:bg-slate-900 text-white opacity-90 sm:opacity-0 group-hover:opacity-100 transition cursor-pointer backdrop-blur-sm"
+                  title="Fullscreen Preview"
+                >
+                  <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                </button>
+                <div data-unavailable-overlay="${variant.key}" class="hidden absolute inset-0 bg-slate-900/85 text-white flex-col items-center justify-center p-4 text-center">
+                  <i data-lucide="image-off" class="w-7 h-7 text-amber-400 mb-1.5"></i>
+                  <span class="text-xs font-bold">Not Available for This Video</span>
+                  <span class="text-[11px] text-slate-300 mt-0.5">Video may not have an HD upload</span>
+                </div>
+              </div>
+
+              <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between gap-4">
+                <div>
+                  <div class="flex items-center justify-between gap-2">
+                    <h3 class="font-bold text-base">${variant.label}</h3>
+                    <span data-real-dims="${variant.key}" class="text-[11px] font-mono font-semibold text-slate-500 dark-subtext">Loading...</span>
+                  </div>
+                  <p class="text-xs text-slate-500 dark-subtext mt-1">${variant.desc}</p>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    data-download-key="${variant.key}"
+                    class="flex-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r ${variant.accent} text-white text-xs sm:text-sm font-bold shadow-md hover:opacity-95 active:scale-[0.99] transition cursor-pointer"
+                  >
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    <span>Download <span class="fmt-label uppercase">${getFormatExt()}</span></span>
+                  </button>
+                  <button
+                    type="button"
+                    data-copy-url="${url}"
+                    class="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                    title="Copy Image URL"
+                  >
+                    <i data-lucide="copy" class="w-4 h-4"></i>
+                  </button>
+                  <a
+                    href="${url}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                    title="Open Image in New Tab"
+                  >
+                    <i data-lucide="external-link" class="w-4 h-4"></i>
+                  </a>
+                </div>
+              </div>
+            </article>
+          `;
+        }).join('');
+
+        // Render frame previews
+        framesGrid.innerHTML = FRAME_VARIANTS.map((frame) => {
+          const url = getThumbUrl(state.videoId, frame.key);
+          return `
+            <article class="glass-card rounded-2xl overflow-hidden border border-white/80 shadow-md flex flex-col">
+              <div class="bg-slate-900 aspect-video relative">
+                <img src="${url}" alt="${frame.label}" class="w-full h-full object-contain" />
+                <span class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-violet-100 text-violet-700">${frame.badge}</span>
+              </div>
+              <div class="p-3.5 flex items-center justify-between gap-2">
+                <span class="font-bold text-xs sm:text-sm">${frame.label}</span>
+                <div class="flex items-center gap-1.5">
+                  <button type="button" data-download-frame="${frame.key}" class="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold cursor-pointer transition">Save</button>
+                  <button type="button" data-copy-url="${url}" class="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer transition" title="Copy URL">
+                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+              </div>
+            </article>
+          `;
+        }).join('');
+
+        // Attach image load/error listeners for real dimension detection
+        thumbnailGrid.querySelectorAll('.thumb-img').forEach((imgEl) => {
+          const key = imgEl.dataset.variant;
+          imgEl.addEventListener('load', () => {
+            const w = imgEl.naturalWidth;
+            const h = imgEl.naturalHeight;
+            // YouTube returns a 120x90 grey placeholder when maxresdefault/sddefault does not exist
+            const isPlaceholder =
+              (key === 'maxresdefault' || key === 'sddefault') && w === 120 && h === 90;
+            const dimsEl = thumbnailGrid.querySelector(`[data-real-dims="${key}"]`);
+            const overlayEl = thumbnailGrid.querySelector(`[data-unavailable-overlay="${key}"]`);
+
+            if (isPlaceholder) {
+              state.availability[key] = { available: false, width: w, height: h };
+              if (dimsEl) dimsEl.textContent = 'Unavailable';
+              if (overlayEl) {
+                overlayEl.classList.remove('hidden');
+                overlayEl.classList.add('flex');
+              }
+            } else {
+              state.availability[key] = { available: true, width: w, height: h };
+              if (dimsEl) dimsEl.textContent = `${w} × ${h}px`;
+            }
+            updateAvailabilitySummary();
+          });
+
+          imgEl.addEventListener('error', () => {
+            state.availability[key] = { available: false, width: 0, height: 0 };
+            const dimsEl = thumbnailGrid.querySelector(`[data-real-dims="${key}"]`);
+            const overlayEl = thumbnailGrid.querySelector(`[data-unavailable-overlay="${key}"]`);
+            if (dimsEl) dimsEl.textContent = 'Unavailable';
+            if (overlayEl) {
+              overlayEl.classList.remove('hidden');
+              overlayEl.classList.add('flex');
+            }
+            updateAvailabilitySummary();
+          });
+        });
+
+        if (window.lucide) lucide.createIcons();
+      }
+
+      function loadVideo(videoId, addToHistory = true) {
+        state.videoId = videoId;
+        errorBanner.classList.add('hidden');
+        if (addToHistory) pushHistory(videoId);
+        renderThumbnails();
+      }
+
+      function applyTheme() {
+        if (state.darkMode) {
+          document.body.classList.add('dark-mode', 'text-slate-100');
+          document.body.classList.remove('text-slate-800');
+          themeToggleBtn.innerHTML = '<i data-lucide="sun" class="w-4 h-4 text-amber-400"></i>';
+        } else {
+          document.body.classList.remove('dark-mode', 'text-slate-100');
+          document.body.classList.add('text-slate-800');
+          themeToggleBtn.innerHTML = '<i data-lucide="moon" class="w-4 h-4 text-amber-500"></i>';
+        }
+        if (window.lucide) lucide.createIcons();
+      }
+
+      // Event Listeners
+      urlForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = extractVideoId(urlInput.value);
+        if (!id) {
+          errorText.textContent = 'Please enter a valid YouTube URL (Watch, Shorts, youtu.be) or 11-character Video ID.';
+          errorBanner.classList.remove('hidden');
+          return;
+        }
+        loadVideo(id, true);
+        showToast(`Loaded thumbnails for ${id}`, 'success');
+      });
+
+      urlInput.addEventListener('input', () => {
+        clearBtn.classList.toggle('hidden', urlInput.value.length === 0);
+        errorBanner.classList.add('hidden');
+      });
+
+      clearBtn.addEventListener('click', () => {
+        urlInput.value = '';
+        clearBtn.classList.add('hidden');
+        urlInput.focus();
+      });
+
+      pasteBtn.addEventListener('click', async () => {
+        try {
+          if (navigator.clipboard && navigator.clipboard.readText) {
+            const text = await navigator.clipboard.readText();
+            if (text) {
+              urlInput.value = text;
+              clearBtn.classList.remove('hidden');
+              const id = extractVideoId(text);
+              if (id) {
+                loadVideo(id, true);
+                showToast(`Pasted & loaded ${id}`, 'success');
+              } else {
+                showToast('Pasted text from clipboard', 'info');
+              }
+              return;
+            }
+          }
+        } catch (err) {
+          // Clipboard read permission denied
+        }
+        urlInput.focus();
+        showToast('Press Ctrl+V / Cmd+V to paste your link', 'info');
+      });
+
+      document.querySelectorAll('.sample-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.sample;
+          urlInput.value = `https://www.youtube.com/watch?v=${id}`;
+          clearBtn.classList.remove('hidden');
+          loadVideo(id, true);
+        });
+      });
+
+      copyIdBtn.addEventListener('click', () => {
+        copyText(state.videoId, `Copied Video ID: ${state.videoId}`);
+      });
+
+      document.querySelectorAll('.format-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.format = btn.dataset.format;
+          document.querySelectorAll('.format-btn').forEach((b) => {
+            b.classList.remove('bg-white', 'text-rose-600', 'shadow-sm');
+            b.classList.add('text-slate-600');
+          });
+          btn.classList.add('bg-white', 'text-rose-600', 'shadow-sm');
+          btn.classList.remove('text-slate-600');
+          document.querySelectorAll('.fmt-label').forEach((el) => {
+            el.textContent = getFormatExt();
+          });
+          showToast(`Export format set to ${getFormatExt().toUpperCase()}`, 'info');
+        });
+      });
+
+      toggleFramesBtn.addEventListener('click', () => {
+        state.showFrames = !state.showFrames;
+        framesSection.classList.toggle('hidden', !state.showFrames);
+        toggleFramesLabel.textContent = state.showFrames ? 'Hide Video Frames' : 'Show Video Frames';
+      });
+
+      downloadZipBtn.addEventListener('click', downloadAllAsZip);
+
+      themeToggleBtn.addEventListener('click', () => {
+        state.darkMode = !state.darkMode;
+        applyTheme();
+        saveTheme();
+      });
+
+      // Delegated clicks on Thumbnail Grid & Frames Grid
+      document.addEventListener('click', (e) => {
+        const dlBtn = e.target.closest('[data-download-key]');
+        if (dlBtn) {
+          const key = dlBtn.dataset.downloadKey;
+          downloadThumbnail(getThumbUrl(state.videoId, key), `${state.videoId}_${key}`);
+          return;
+        }
+
+        const dlFrameBtn = e.target.closest('[data-download-frame]');
+        if (dlFrameBtn) {
+          const key = dlFrameBtn.dataset.downloadFrame;
+          downloadThumbnail(getThumbUrl(state.videoId, key), `${state.videoId}_frame_${key}`);
+          return;
+        }
+
+        const copyBtn = e.target.closest('[data-copy-url]');
+        if (copyBtn) {
+          copyText(copyBtn.dataset.copyUrl, 'Copied thumbnail URL!');
+          return;
+        }
+
+        const previewBtn = e.target.closest('[data-preview-key]');
+        if (previewBtn) {
+          const key = previewBtn.dataset.previewKey;
+          const variant = THUMB_VARIANTS.find((v) => v.key === key);
+          const url = getThumbUrl(state.videoId, key);
+          const info = state.availability[key];
+          state.previewItem = { url, filenameBase: `${state.videoId}_${key}` };
+          previewImg.src = url;
+          previewTitle.textContent = variant ? variant.label : 'Thumbnail Preview';
+          previewDims.textContent =
+            info && info.width ? `Actual resolution: ${info.width} × ${info.height}px` : '';
+          previewModal.classList.remove('hidden');
+          previewModal.classList.add('flex');
+          return;
+        }
+
+        const loadHistBtn = e.target.closest('[data-load-id]');
+        if (loadHistBtn) {
+          const id = loadHistBtn.dataset.loadId;
+          urlInput.value = `https://www.youtube.com/watch?v=${id}`;
+          clearBtn.classList.remove('hidden');
+          loadVideo(id, true);
+          historyModal.classList.add('hidden');
+          historyModal.classList.remove('flex');
+          return;
+        }
+
+        const remHistBtn = e.target.closest('[data-remove-id]');
+        if (remHistBtn) {
+          const id = remHistBtn.dataset.removeId;
+          state.history = state.history.filter((item) => item.id !== id);
+          saveHistory();
+          renderHistoryBadge();
+          renderHistoryList();
+        }
+      });
+
+      // History Modal controls
+      historyToggleBtn.addEventListener('click', () => {
+        renderHistoryList();
+        historyModal.classList.remove('hidden');
+        historyModal.classList.add('flex');
+      });
+
+      closeHistoryBtn.addEventListener('click', () => {
+        historyModal.classList.add('hidden');
+        historyModal.classList.remove('flex');
+      });
+
+      historyModal.addEventListener('click', (e) => {
+        if (e.target === historyModal) {
+          historyModal.classList.add('hidden');
+          historyModal.classList.remove('flex');
+        }
+      });
+
+      clearHistoryBtn.addEventListener('click', () => {
+        state.history = [];
+        saveHistory();
+        renderHistoryBadge();
+        renderHistoryList();
+        showToast('History cleared', 'info');
+      });
+
+      // Preview Modal controls
+      closePreviewBtn.addEventListener('click', () => {
+        previewModal.classList.add('hidden');
+        previewModal.classList.remove('flex');
+      });
+
+      previewModal.addEventListener('click', (e) => {
+        if (e.target === previewModal) {
+          previewModal.classList.add('hidden');
+          previewModal.classList.remove('flex');
+        }
+      });
+
+      previewDownloadBtn.addEventListener('click', () => {
+        if (state.previewItem) {
+          downloadThumbnail(state.previewItem.url, state.previewItem.filenameBase);
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          previewModal.classList.add('hidden');
+          previewModal.classList.remove('flex');
+          historyModal.classList.add('hidden');
+          historyModal.classList.remove('flex');
+        }
+      });
+
+      // Initialize app
+      loadStorage();
+      renderHistoryBadge();
+      loadVideo(state.videoId, false);
+    })();
+  </script>
+</body>
+</html>
